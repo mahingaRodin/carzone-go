@@ -30,6 +30,7 @@ func ValidateEngineRequest(engineReq EngineRequest) error {
 	if err := validateCarRange(engineReq.CarRange); err != nil {
 		return err
 	}
+	return nil
 }
 
 func validateDisplacement(displacement int64) error {
