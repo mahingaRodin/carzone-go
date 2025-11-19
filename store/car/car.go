@@ -186,7 +186,49 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 }
 
 func (s Store) UpdateCar(ctx context.Context,id string , carReq *models.CarRequest) (models.Car, error) {
+	 var updatedCar models.Car
 
+	 tx,err := s.db.BeginTx(ctx,nil)
+	 if err != nil {
+		return updatedCar,err
+	 }
+	 defer func() {
+		if err != nil {
+			tx.Rollback()
+			return 
+		}
+		err = tx.Commit()
+	 }()
+
+	 query := `
+	 UPDATE	car 
+	 SET name = $2, year = $3 , fuel_type = $5, engine_id = $6, price = $7, updated_at = $8
+	 WHERE id = $1
+	 RETURN id,name , year , brand, fuel_type , engine_id , price, created_at, updated_at
+	 `
+	 err = tx.QueryRowContext(ctx, query, 
+	id, 
+	carReq.Name,
+	carReq.Year,
+	carReq.Brand,
+	carReq.FuelType,
+	carReq.Engine.EngineID,
+	carReq.Price,
+	time.Now(),
+	).Scan(
+		&updatedCar.ID,
+		&updatedCar.Name,
+		&updatedCar.Brand,
+		&updatedCar.FuelType,
+		&updatedCar.Engine.EngineID,
+		&updatedCar.Price,
+		&updatedCar.CreatedAt,
+		&updatedCar.UpdatedAt,
+	)
+	if err != nil {
+		return updatedCar, err
+	}
+	return updatedCar, err
 }
 
 func (s Store) DeleteCar(ctx context.Context, id string) (models.Car, error) {
