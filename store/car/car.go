@@ -11,7 +11,6 @@ import (
 	"database/sql"
 
 	"github.com/mahingaRodin/carzone-go/models"
-	"golang.org/x/tools/go/analysis/passes/nilfunc"
 )
 type Store struct {
 	db *sql.DB
@@ -118,7 +117,7 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 	err := s.db.QueryRowContext(ctx, "SELECT id FROM engine WHERE id=$1", carReq.Engine.EngineID).Scan(&engineID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return createdCar, errors.New("engine_id doesn't exist in the engine table!")
+			return createdCar, errors.New("engine_id doesn't exist in the engine table")
 		}
 		return createdCar, err
 	}
@@ -141,7 +140,7 @@ func (s Store) CreateCar(ctx context.Context, carReq *models.CarRequest) (models
 
 	//begin the transaction
 	tx, err := s.db.BeginTx(ctx, nil)
-	if er != nil {
+	if err != nil {
 		return createdCar, err 
 	}
 
@@ -232,5 +231,59 @@ func (s Store) UpdateCar(ctx context.Context,id string , carReq *models.CarReque
 }
 
 func (s Store) DeleteCar(ctx context.Context, id string) (models.Car, error) {
+    var deletedCar models.Car
+    var err error 
 
+    tx, err := s.db.BeginTx(ctx, nil)
+    if err != nil {
+        return deletedCar, err
+    }
+
+    defer func() {
+        if err != nil {
+            tx.Rollback()
+            return
+        }
+        err = tx.Commit()
+    }()
+    row := tx.QueryRowContext(ctx,
+        "SELECT id, name, year, brand, fuel_type, engine_id, price, created_at, updated_at FROM car WHERE id=$1",
+        id,
+    )
+
+    err = row.Scan(
+        &deletedCar.ID,
+        &deletedCar.Name,
+        &deletedCar.Year,
+        &deletedCar.Brand,
+        &deletedCar.FuelType,
+        &deletedCar.Engine.EngineID,
+        &deletedCar.Price,
+        &deletedCar.CreatedAt,
+        &deletedCar.UpdatedAt,
+    )
+
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            return models.Car{}, errors.New("car not found")
+        }
+        return models.Car{}, err
+    }
+
+    var result sql.Result
+    result, err = tx.ExecContext(ctx, "DELETE FROM car WHERE id=$1", id)
+    if err != nil {
+        return models.Car{}, err
+    }
+
+    rowsAffected, err := result.RowsAffected()
+    if err != nil {
+        return models.Car{}, err
+    }
+
+    if rowsAffected == 0 {
+        return models.Car{}, errors.New("no rows were deleted")
+    }
+
+    return deletedCar, nil
 }
